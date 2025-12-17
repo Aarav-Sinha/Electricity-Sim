@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scientific Lab | Aarav Sinha</title>
+    <style>
+        :root {
+            --neon: #00f2ff;
+            --bg: #050505;
+            --panel: #111;
+            --accent: #1e1e1e;
+            --wire-on: #00ff88;
+            --wire-off: #444;
+        }
+
+        * { box-sizing: border-box; touch-action: none; -webkit-user-select: none; }
+        body { 
+            margin: 0; background: var(--bg); color: #fff; 
+            font-family: 'Inter', -apple-system, sans-serif;
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+
+        /* --- Header --- */
+        header {
+            height: 60px; background: #000; display: flex; align-items: center;
+            justify-content: space-between; padding: 0 20px; border-bottom: 1px solid #222;
+        }
+        .logo { font-size: 12px; letter-spacing: 4px; color: var(--neon); font-weight: 800; }
+        .controls { display: flex; gap: 10px; }
+
+        /* --- Lab Workspace --- */
+        #main-container { flex-grow: 1; position: relative; display: flex; overflow: hidden; }
+        
+        #workspace {
+            flex-grow: 1; position: relative; overflow: hidden;
+            background-image: radial-gradient(#222 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        #wire-canvas {
+            position: absolute; top: 0; left: 0; pointer-events: none;
+            width: 100%; height: 100%; z-index: 1;
+        }
+
+        /* --- Components --- */
+        .component {
+            position: absolute; z-index: 10; padding: 20px;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .comp-body {
+            position: relative; width: 100px; height: 60px;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .port {
+            width: 14px; height: 14px; background: #222; border: 2px solid #555;
+            border-radius: 50%; position: absolute; z-index: 20;
+        }
+        .p-L { left: -7px; top: 50%; transform: translateY(-50%); }
+        .p-R { right: -7px; top: 50%; transform: translateY(-50%); }
+        .port.active { background: var(--neon); box-shadow: 0 0 15px var(--neon); scale: 1.5; }
+
+        /* Reading Display */
+        .reading {
+            position: absolute; top: -35px; width: 100%; text-align: center;
+            font-family: 'Courier New', monospace; font-weight: bold;
+            color: var(--neon); font-size: 14px; pointer-events: none;
+        }
+
+        /* Rating Input */
+        .val-box {
+            position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%);
+            background: #000; border: 1px solid #333; color: var(--neon);
+            font-size: 10px; width: 55px; text-align: center; border-radius: 4px;
+        }
+
+        /* Action Menu (Visible on Click/Tap) */
+        .action-menu {
+            position: absolute; top: -50px; left: 50%; transform: translateX(-50%);
+            display: none; gap: 8px; background: rgba(0,0,0,0.9);
+            padding: 5px 12px; border-radius: 30px; border: 1px solid #444; z-index: 100;
+        }
+        .component.selected .action-menu { display: flex; }
+        .m-btn {
+            width: 32px; height: 32px; border-radius: 50%; border: none;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; color: #fff; cursor: pointer;
+        }
+        .btn-rot { background: #333; }
+        .btn-del { background: #ff4444; }
+
+        /* --- Inventory Drawer (Mobile & Desktop) --- */
+        #inventory {
+            height: 140px; background: #000; border-top: 1px solid #222;
+            display: flex; overflow-x: auto; padding: 15px; gap: 20px;
+            scrollbar-width: none;
+        }
+        #inventory::-webkit-scrollbar { display: none; }
+
+        .inv-item {
+            min-width: 90px; height: 100px; background: var(--accent);
+            border-radius: 12px; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; border: 1px solid #333;
+            transition: 0.3s; cursor: pointer;
+        }
+        .inv-item:active { transform: scale(0.9); border-color: var(--neon); }
+        .inv-item svg { width: 45px; height: 30px; margin-bottom: 10px; stroke: #fff; fill: none; }
+        .inv-item span { font-size: 10px; font-weight: 600; color: #888; text-transform: uppercase; }
+
+        /* --- Master Buttons --- */
+        .master-btn {
+            background: #111; border: 1px solid #333; color: #fff;
+            padding: 8px 16px; border-radius: 6px; font-size: 11px;
+            font-weight: bold; cursor: pointer; transition: 0.3s;
+        }
+        .btn-pwr.on { border-color: #00ff88; color: #00ff88; box-shadow: 0 0 10px rgba(0,255,136,0.3); }
+
+        .watermark {
+            position: absolute; bottom: 160px; right: 30px; font-size: 14px;
+            letter-spacing: 8px; opacity: 0.1; font-weight: bold; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">AARAV SINHA LAB</div>
+    <div class="controls">
+        <button class="master-btn" onclick="undo()">UNDO</button>
+        <button class="master-btn btn-pwr" id="pwr-toggle" onclick="togglePower()">POWER: OFF</button>
+    </div>
+</header>
+
+<div id="main-container">
+    <div id="workspace">
+        <canvas id="wire-canvas"></canvas>
+        <div class="watermark">AARAV SINHA</div>
+    </div>
+</div>
+
+<div id="inventory">
+    <div class="inv-item" onclick="spawn('battery')"><svg viewBox="0 0 40 20"><path d="M5 10h12M23 10h12M17 3v14M23 0v20"/></svg><span>Battery</span></div>
+    <div class="inv-item" onclick="spawn('resistor')"><svg viewBox="0 0 40 20"><path d="M0 10h10l2-5l4 10l4-10l4 10l4-10l2 5h10"/></svg><span>Resistor</span></div>
+    <div class="inv-item" onclick="spawn('bulb')"><svg viewBox="0 0 40 20"><circle cx="20" cy="10" r="7"/><path d="M16 10q4-4 8 0"/></svg><span>Bulb</span></div>
+    <div class="inv-item" onclick="spawn('switch')"><svg viewBox="0 0 40 20"><circle cx="10" cy="15" r="2"/><line x1="10" y1="15" x2="30" y2="5"/></svg><span>Switch</span></div>
+    <div class="inv-item" onclick="spawn('ammeter')"><svg viewBox="0 0 40 20"><circle cx="20" cy="10" r="8"/><text x="17" y="13" fill="#fff" font-size="8">A</text></svg><span>Ammeter</span></div>
+    <div class="inv-item" onclick="spawn('voltmeter')"><svg viewBox="0 0 40 20"><circle cx="20" cy="10" r="8"/><text x="17" y="13" fill="#fff" font-size="8">V</text></svg><span>Voltmeter</span></div>
+    <div class="inv-item" onclick="spawn('fuse')"><svg viewBox="0 0 40 20"><rect x="10" y="5" width="20" height="10" stroke="#fff"/><path d="M10 10q10-5 20 0"/></svg><span>Fuse</span></div>
+</div>
+
+<script>
+    const workspace = document.getElementById('workspace');
+    const canvas = document.getElementById('wire-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let components = [];
+    let history = [];
+    let isPowerOn = false;
+    let selectedId = null;
+
+    function resize() {
+        canvas.width = workspace.offsetWidth;
+        canvas.height = workspace.offsetHeight;
+        drawWires();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- Physics & Circuit Logic ---
+    function solve() {
+        if(!isPowerOn) {
+            components.forEach(c => document.getElementById(`read-${c.id}`).innerText = "");
+            return;
+        }
+
+        let totalV = 0, totalR = 0, isOpen = false;
+        components.forEach(c => {
+            if(c.type === 'battery') totalV += c.val;
+            if(c.type === 'resistor') totalR += c.val;
+            if(c.type === 'bulb') totalR += 20;
+            if(c.type === 'switch' && !c.state) isOpen = true;
+            if(c.type === 'fuse' && c.val < 0.1) isOpen = true; // Blown fuse
+        });
+
+        const current = (totalR > 0 && !isOpen) ? totalV / totalR : 0;
+
+        components.forEach(c => {
+            const r = document.getElementById(`read-${c.id}`);
+            if(c.type === 'ammeter') r.innerText = current.toFixed(2) + "A";
+            if(c.type === 'voltmeter') r.innerText = (current * totalR).toFixed(1) + "V";
+            if(c.type === 'bulb') {
+                const glow = document.getElementById(`glow-${c.id}`);
+                glow.style.stroke = current > 0 ? "yellow" : "#fff";
+                glow.style.filter = current > 0 ? `drop-shadow(0 0 ${current*10}px yellow)` : "none";
+            }
+        });
+    }
+
+    // --- Component Engine ---
+    function spawn(type) {
+        saveState();
+        const id = 'C-' + Math.random().toString(36).substr(2, 9);
+        const comp = {
+            id, type, x: 50, y: 100, rot: 0, 
+            val: type==='battery' ? 12 : 100, 
+            state: false, 
+            connectedTo: null 
+        };
+        components.push(comp);
+        render(comp);
+    }
+
+    function render(c) {
+        const div = document.createElement('div');
+        div.className = 'component';
+        div.id = c.id;
+        div.style.left = c.x + 'px';
+        div.style.top = c.y + 'px';
+
+        const svgs = {
+            battery: `<svg viewBox="0 0 100 60"><path d="M0 30h35M65 30h35" stroke="#666"/><path d="M35 15v30" stroke="#fff" stroke-width="6"/><path d="M55 5v50" stroke="#fff" stroke-width="2"/></svg>`,
+            resistor: `<svg viewBox="0 0 100 60"><path d="M0 30h25l5-15l10 30l10-30l10 30l10-30l5 15h25" stroke="#fff" fill="none" stroke-width="2"/></svg>`,
+            bulb: `<svg viewBox="0 0 100 60"><circle cx="50" cy="30" r="20" stroke="#fff" fill="none" stroke-width="2"/><path id="glow-${c.id}" d="M40 35q10-15 20 0" stroke="#fff" fill="none"/><path d="M0 30h30m40 0h30" stroke="#666"/></svg>`,
+            switch: `<svg viewBox="0 0 100 60"><circle cx="30" cy="30" r="3" fill="#fff"/><line id="sw-${c.id}" x1="30" y1="30" x2="70" y2="${c.state?30:10}" stroke="#fff" stroke-width="4"/><circle cx="70" cy="30" r="3" fill="#fff"/><path d="M0 30h30m40 0h30" stroke="#666"/></svg>`,
+            ammeter: `<svg viewBox="0 0 100 60"><circle cx="50" cy="30" r="20" stroke="#fff" fill="none"/><text x="43" y="38" fill="#fff" font-size="20" font-weight="bold">A</text><path d="M0 30h30m40 0h30" stroke="#666"/></svg>`,
+            voltmeter: `<svg viewBox="0 0 100 60"><circle cx="50" cy="30" r="20" stroke="#fff" fill="none"/><text x="43" y="38" fill="#fff" font-size="20" font-weight="bold">V</text><path d="M0 30h30m40 0h30" stroke="#666"/></svg>`,
+            fuse: `<svg viewBox="0 0 100 60"><rect x="30" y="20" width="40" height="20" stroke="#666" fill="none"/><path d="M30 30q20-10 40 0" stroke="#ffaa00"/><path d="M0 30h30m40 0h30" stroke="#666"/></svg>`
+        };
+
+        div.innerHTML = `
+            <div class="reading" id="read-${c.id}"></div>
+            <div class="action-menu">
+                <div class="m-btn btn-rot" onclick="rotateComp('${c.id}')">↻</div>
+                <div class="m-btn btn-del" onclick="deleteComp('${c.id}')">×</div>
+            </div>
+            <div class="comp-body" style="transform: rotate(${c.rot}deg)">
+                ${svgs[c.type]}
+                <div class="port p-L"></div>
+                <div class="port p-R"></div>
+            </div>
+            ${(c.type==='battery'||c.type==='resistor') ? `<input type="number" class="val-box" value="${c.val}" onchange="updateVal('${c.id}',this.value)">` : ''}
+        `;
+
+        // --- Interaction (Touch & Mouse) ---
+        const handleMove = (clientX, clientY) => {
+            const rect = workspace.getBoundingClientRect();
+            c.x = clientX - rect.left - 50;
+            c.y = clientY - rect.top - 30;
+
+            // Auto-Snap Logic
+            components.forEach(other => {
+                if(other.id === c.id) return;
+                const dist = Math.hypot(c.x - (other.x + 100), c.y - other.y);
+                if(dist < 35) {
+                    c.x = other.x + 100;
+                    c.y = other.y;
+                }
+            });
+
+            div.style.left = c.x + 'px';
+            div.style.top = c.y + 'px';
+            drawWires();
+            solve();
+        };
+
+        div.addEventListener('touchstart', (e) => {
+            select(c.id);
+            const t = e.touches[0];
+            div.dataset.ox = t.clientX - div.offsetLeft;
+            div.dataset.oy = t.clientY - div.offsetTop;
+        });
+
+        div.addEventListener('touchmove', (e) => {
+            const t = e.touches[0];
+            handleMove(t.clientX, t.clientY);
+        });
+
+        // Desktop Mouse Support
+        div.onmousedown = (e) => {
+            if(e.target.tagName === 'INPUT' || e.target.classList.contains('m-btn')) return;
+            select(c.id);
+            document.onmousemove = (me) => handleMove(me.clientX, me.clientY);
+            document.onmouseup = () => document.onmousemove = null;
+        };
+
+        div.onclick = (e) => {
+            if(c.type === 'switch') {
+                c.state = !c.state;
+                document.getElementById(`sw-${c.id}`).setAttribute("y2", c.state ? "30" : "10");
+                solve();
+            }
+        };
+
+        workspace.appendChild(div);
+    }
+
+    // --- System Actions ---
+    function select(id) {
+        if(selectedId) document.getElementById(selectedId).classList.remove('selected');
+        selectedId = id;
+        document.getElementById(id).classList.add('selected');
+    }
+
+    function rotateComp(id) {
+        const c = components.find(x => x.id === id);
+        c.rot = (c.rot + 90) % 360;
+        document.getElementById(id).querySelector('.comp-body').style.transform = `rotate(${c.rot}deg)`;
+        drawWires();
+    }
+
+    function deleteComp(id) {
+        components = components.filter(x => x.id !== id);
+        document.getElementById(id).remove();
+        drawWires();
+        solve();
+    }
+
+    function updateVal(id, v) {
+        components.find(x => x.id === id).val = parseFloat(v);
+        solve();
+    }
+
+    function togglePower() {
+        isPowerOn = !isPowerOn;
+        const btn = document.getElementById('pwr-toggle');
+        btn.innerText = isPowerOn ? "POWER: ON" : "POWER: OFF";
+        btn.classList.toggle('on');
+        solve();
+        drawWires();
+    }
+
+    function drawWires() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = isPowerOn ? "var(--wire-on)" : "var(--wire-off)";
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+
+        // Connect components in a simple sequential loop for series demo
+        for(let i=0; i < components.length - 1; i++) {
+            const c1 = components[i];
+            const c2 = components[i+1];
+            ctx.beginPath();
+            ctx.moveTo(c1.x + 100, c1.y + 45); // Adjust for port position
+            ctx.lineTo(c2.x + 15, c2.y + 45);
+            ctx.stroke();
+        }
+    }
+
+    function saveState() {
+        if(history.length > 30) history.shift();
+        history.push(JSON.stringify(components));
+    }
+
+    function undo() {
+        if(history.length > 0) {
+            components = JSON.parse(history.pop());
+            workspace.querySelectorAll('.component').forEach(e => e.remove());
+            components.forEach(render);
+            drawWires();
+            solve();
+        }
+    }
+
+    workspace.onclick = (e) => { if(e.target === workspace) select(null); };
+</script>
+</body>
+</html>
