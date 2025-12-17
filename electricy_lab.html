@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scientific Circuit Lab | Aarav Sinha</title>
+    <style>
+        :root {
+            --neon: #00f2ff;
+            --bg: #010204;
+            --panel: #0a0e14;
+            --wire-on: #00ff88;
+        }
+
+        body {
+            margin: 0; background: var(--bg); color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex; height: 100vh; overflow: hidden;
+        }
+
+        /* --- Sidebar & UI --- */
+        #toolbox {
+            width: 320px; height: 100vh; background: var(--panel);
+            border-right: 1px solid #333; padding: 25px; z-index: 100;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5); overflow-y: auto;
+        }
+
+        .lab-header {
+            font-size: 10px; letter-spacing: 5px; color: var(--neon);
+            text-align: center; margin-bottom: 30px; border: 1px solid var(--neon);
+            padding: 12px; background: rgba(0, 242, 255, 0.05);
+        }
+
+        .category {
+            font-size: 9px; color: #555; text-transform: uppercase;
+            margin: 25px 0 10px 0; letter-spacing: 2px; border-bottom: 1px solid #222;
+        }
+
+        .item-card {
+            background: #080808; border: 1px solid #222; padding: 15px;
+            margin-bottom: 12px; border-radius: 8px; cursor: pointer;
+            transition: all 0.3s; display: flex; align-items: center; justify-content: space-between;
+        }
+
+        .item-card:hover {
+            border-color: var(--neon); background: #0d1a1a; transform: translateX(8px);
+        }
+
+        .item-card span { font-size: 11px; font-weight: 600; letter-spacing: 1px; }
+
+        /* --- Workspace --- */
+        #workspace {
+            flex-grow: 1; position: relative; overflow: hidden;
+            background-image: 
+                radial-gradient(circle, #1a1a1a 1px, transparent 1px),
+                linear-gradient(to right, #050505 1px, transparent 1px),
+                linear-gradient(to bottom, #050505 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* --- Components --- */
+        .component {
+            position: absolute; cursor: grab; padding: 15px; z-index: 10;
+            transition: outline 0.2s; outline: 1px solid transparent;
+        }
+
+        .component:hover { outline: 1px dashed #444; }
+        .component:active { cursor: grabbing; }
+
+        .comp-inner { position: relative; width: 100px; height: 60px; pointer-events: none; }
+
+        /* Component Controls */
+        .comp-controls {
+            position: absolute; top: -35px; left: 50%; transform: translateX(-50%);
+            display: none; gap: 8px; background: #000; border: 1px solid #333;
+            padding: 5px 10px; border-radius: 20px; z-index: 50;
+        }
+        .component:hover .comp-controls { display: flex; }
+
+        .ctrl-btn {
+            width: 26px; height: 26px; border-radius: 50%; border: none;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; transition: 0.2s;
+        }
+        .btn-rotate { background: var(--neon); color: #000; }
+        .btn-delete { background: #ff4444; color: #fff; }
+
+        /* Visual Equipment Elements */
+        .reading {
+            position: absolute; top: -45px; width: 100%; text-align: center;
+            font-family: 'Courier New', monospace; font-weight: bold;
+            color: var(--neon); font-size: 15px; text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
+        }
+
+        .port {
+            width: 12px; height: 12px; background: #222; border: 2px solid #555;
+            border-radius: 50%; position: absolute; z-index: 20;
+        }
+        .port.p-L { left: -6px; top: 50%; transform: translateY(-50%); }
+        .port.p-R { right: -6px; top: 50%; transform: translateY(-50%); }
+
+        .port.active-snap {
+            background: var(--neon); box-shadow: 0 0 15px var(--neon); scale: 1.5;
+        }
+
+        /* Input Overlays */
+        .val-input {
+            position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%);
+            background: #111; border: 1px solid #333; color: var(--neon);
+            font-size: 10px; width: 50px; text-align: center; border-radius: 4px;
+        }
+
+        /* Top Toolbar */
+        .top-bar {
+            position: absolute; top: 20px; right: 20px; display: flex; gap: 15px; z-index: 200;
+        }
+        .main-btn {
+            padding: 12px 25px; border-radius: 5px; border: 1px solid #333;
+            background: #000; color: #fff; cursor: pointer; text-transform: uppercase;
+            font-size: 11px; font-weight: bold; transition: 0.3s;
+        }
+        .btn-pwr { border-color: #00ff88; color: #00ff88; }
+        .btn-pwr.active { background: #00ff88; color: #000; box-shadow: 0 0 20px rgba(0, 255, 136, 0.4); }
+
+        .watermark {
+            position: absolute; bottom: 30px; right: 40px; font-size: 16px;
+            letter-spacing: 10px; opacity: 0.1; pointer-events: none; font-weight: bold;
+        }
+
+        #wire-canvas {
+            position: absolute; top: 0; left: 0; pointer-events: none; width: 100%; height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+<div id="toolbox">
+    <div class="lab-header">AARAV SINHA | PHYSICS V10</div>
+    
+    <div class="category">Power Infrastructure</div>
+    <div class="item-card" onclick="spawn('battery')"><span>DC Battery Unit</span> 🔋</div>
+    <div class="item-card" onclick="spawn('switch')"><span>Standard Key</span> 🔑</div>
+    <div class="item-card" onclick="spawn('fuse')"><span>Safety Fuse</span> ⚡</div>
+
+    <div class="category">Loads & Control</div>
+    <div class="item-card" onclick="spawn('resistor')"><span>Fixed Resistor</span> ▱</div>
+    <div class="item-card" onclick="spawn('bulb')"><span>Filament Bulb</span> 💡</div>
+    <div class="item-card" onclick="spawn('rheostat')"><span>Rheostat</span> 🎚️</div>
+
+    <div class="category">Instruments</div>
+    <div class="item-card" onclick="spawn('ammeter')"><span>Ammeter (A)</span> 🟢</div>
+    <div class="item-card" onclick="spawn('voltmeter')"><span>Voltmeter (V)</span> 🔵</div>
+
+    <div style="margin-top: 40px; font-size: 9px; color: #444; line-height: 1.6;">
+        <strong style="color: #666;">OPERATION GUIDE:</strong><br>
+        • Drag equipment near terminals to AUTO-CONNECT.<br>
+        • Use Top Buttons to Rotate or Delete items.<br>
+        • Toggle Switch to complete the circuit.<br>
+        • Double-click wires to remove them.
+    </div>
+</div>
+
+<div id="workspace">
+    <canvas id="wire-canvas"></canvas>
+    <div class="top-bar">
+        <button class="main-btn" onclick="undo()">Undo Action</button>
+        <button class="main-btn btn-pwr" id="power-btn" onclick="togglePower()">Master Power: OFF</button>
+    </div>
+    <div class="watermark">AARAV SINHA</div>
+</div>
+
+<script>
+    const workspace = document.getElementById('workspace');
+    const canvas = document.getElementById('wire-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let components = [];
+    let connections = [];
+    let history = [];
+    let isPowerOn = false;
+    let snapDistance = 35;
+
+    // Resize Canvas
+    function resize() {
+        canvas.width = workspace.offsetWidth;
+        canvas.height = workspace.offsetHeight;
+        drawWires();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- Component Engine ---
+    function spawn(type) {
+        saveState();
+        const id = 'comp_' + Math.floor(Math.random() * 1000000);
+        const comp = {
+            id, type, x: 100, y: 100, rotation: 0,
+            val: type === 'battery' ? 12 : (type === 'resistor' ? 100 : 0.5),
+            state: false, // For switch
+            ports: {
+                L: { id: 'L', parent: id },
+                R: { id: 'R', parent: id }
+            }
+        };
+        components.push(comp);
+        renderComponent(comp);
+    }
+
+    function renderComponent(c) {
+        const div = document.createElement('div');
+        div.className = 'component';
+        div.id = c.id;
+        div.style.left = c.x + 'px';
+        div.style.top = c.y + 'px';
+
+        const svgMap = {
+            battery: `<svg viewBox="0 0 100 60"><path d="M0 30 H40 M60 30 H100" stroke="#666"/><path d="M40 15 V45" stroke="#fff" stroke-width="6"/><path d="M60 5 V55" stroke="#fff" stroke-width="2"/></svg>`,
+            resistor: `<svg viewBox="0 0 100 60"><path d="M0 30 H25 L30 15 L40 45 L50 15 L60 45 L70 15 L75 30 H100" fill="none" stroke="#fff" stroke-width="2"/></svg>`,
+            bulb: `<svg viewBox="0 0 100 60"><circle cx="50" cy="30" r="20" stroke="#fff" fill="none" stroke-width="2"/><path id="fil-${c.id}" d="M40 35 Q50 15 60 35" stroke="#fff" fill="none"/><path d="M0 30 H30 M70 30 H100" stroke="#666"/></svg>`,
+            switch: `<svg viewBox="0 0 100 60"><circle cx="25" cy="30" r="4" fill="#666"/><circle cx="75" cy="30" r="4" fill="#666"/><line id="lever-${c.id}" x1="25" y1="30" x2="72" y2="${c.state ? 30 : 5}" stroke="#fff" stroke-width="4"/><path d="M0 30 H25 M75 30 H100" stroke="#666"/></svg>`,
+            ammeter: `<svg viewBox="0 0 100 60"><circle cx="50" cy="30" r="20" stroke="#fff" fill="none" stroke-width="2"/><text x="43" y="38" fill="#fff" font-size="22" font-weight="bold">A</text><path d="M0 30 H30 M70 30 H100" stroke="#666"/></svg>`,
+            voltmeter: `<svg viewBox="0 0 100 60"><circle cx="50" cy="30" r="20" stroke="#fff" fill="none" stroke-width="2"/><text x="43" y="38" fill="#fff" font-size="22" font-weight="bold">V</text><path d="M0 30 H30 M70 30 H100" stroke="#666"/></svg>`,
+            fuse: `<svg viewBox="0 0 100 60"><rect x="30" y="20" width="40" height="20" rx="2" stroke="#666" fill="none"/><path d="M30 30 Q50 20 70 30" stroke="#ffaa00" fill="none"/><path d="M0 30 H30 M70 30 H100" stroke="#666"/></svg>`,
+            rheostat: `<svg viewBox="0 0 100 60"><path d="M20 40 H80 V45 H20 Z" fill="#333"/><path d="M0 30 H20 M80 30 H100" stroke="#666"/><path d="M50 30 L50 10 M40 10 H60" stroke="#fff" stroke-width="2"/></svg>`
+        };
+
+        div.innerHTML = `
+            <div class="comp-controls">
+                <button class="ctrl-btn btn-rotate" onclick="rotateComp('${c.id}')">↻</button>
+                <button class="ctrl-btn btn-delete" onclick="deleteComp('${c.id}')">×</button>
+            </div>
+            <div class="reading" id="read-${c.id}"></div>
+            <div class="comp-inner" style="transform: rotate(${c.rotation}deg)">
+                ${svgMap[c.type]}
+                <div class="port p-L" data-port="L"></div>
+                <div class="port p-R" data-port="R"></div>
+            </div>
+            ${(c.type === 'battery' || c.type === 'resistor') ? 
+                `<input type="number" class="val-input" value="${c.val}" onchange="updateVal('${c.id}', this.value)">` : ''}
+        `;
+
+        // Interactivity
+        div.onmousedown = (e) => {
+            if(e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+            saveState();
+            let startX = e.clientX - div.offsetLeft;
+            let startY = e.clientY - div.offsetTop;
+
+            document.onmousemove = (me) => {
+                c.x = me.clientX - startX;
+                c.y = me.clientY - startY;
+                
+                checkMagneticSnapping(c, div);
+                
+                div.style.left = c.x + 'px';
+                div.style.top = c.y + 'px';
+                drawWires();
+                solveCircuit();
+            };
+
+            document.onmouseup = () => {
+                document.onmousemove = null;
+                document.querySelectorAll('.port').forEach(p => p.classList.remove('active-snap'));
+            };
+        };
+
+        div.onclick = (e) => {
+            if(c.type === 'switch') {
+                c.state = !c.state;
+                document.getElementById(`lever-${c.id}`).setAttribute("y2", c.state ? "30" : "5");
+                solveCircuit();
+            }
+        };
+
+        workspace.appendChild(div);
+    }
+
+    // --- Magnetic Proximity Logic ---
+    function checkMagneticSnapping(c, divEl) {
+        let snapped = false;
+        const myPorts = divEl.querySelectorAll('.port');
+        
+        components.forEach(other => {
+            if(other.id === c.id) return;
+            const otherEl = document.getElementById(other.id);
+            const otherPorts = otherEl.querySelectorAll('.port');
+
+            myPorts.forEach(p1 => {
+                const r1 = p1.getBoundingClientRect();
+                otherPorts.forEach(p2 => {
+                    const r2 = p2.getBoundingClientRect();
+                    const dist = Math.hypot(r1.x - r2.x, r1.y - r2.y);
+
+                    if(dist < snapDistance) {
+                        p2.classList.add('active-snap');
+                        snapped = true;
+                        
+                        // Register connection if it doesn't exist
+                        const connectionExists = connections.find(conn => 
+                            (conn.from === c.id && conn.to === other.id) || 
+                            (conn.from === other.id && conn.to === c.id)
+                        );
+
+                        if(!connectionExists) {
+                            connections.push({
+                                from: c.id, fromPort: p1.dataset.port,
+                                to: other.id, toPort: p2.dataset.port
+                            });
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    // --- Core Tools ---
+    function rotateComp(id) {
+        saveState();
+        const c = components.find(x => x.id === id);
+        c.rotation = (c.rotation + 90) % 360;
+        document.getElementById(id).querySelector('.comp-inner').style.transform = `rotate(${c.rotation}deg)`;
+        drawWires();
+    }
+
+    function deleteComp(id) {
+        saveState();
+        components = components.filter(x => x.id !== id);
+        connections = connections.filter(conn => conn.from !== id && conn.to !== id);
+        document.getElementById(id).remove();
+        drawWires();
+        solveCircuit();
+    }
+
+    function updateVal(id, v) {
+        components.find(x => x.id === id).val = parseFloat(v);
+        solveCircuit();
+    }
+
+    function togglePower() {
+        isPowerOn = !isPowerOn;
+        const btn = document.getElementById('power-btn');
+        btn.innerText = isPowerOn ? "Master Power: ON" : "Master Power: OFF";
+        btn.classList.toggle('active');
+        solveCircuit();
+    }
+
+    // --- Rendering Wires ---
+    function drawWires() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = 3;
+        
+        connections.forEach(conn => {
+            const el1 = document.getElementById(conn.from).querySelector(`.p-${conn.fromPort}`);
+            const el2 = document.getElementById(conn.to).querySelector(`.p-${conn.toPort}`);
+            if(!el1 || !el2) return;
+
+            const r1 = el1.getBoundingClientRect();
+            const r2 = el2.getBoundingClientRect();
+            const offset = toolbox.offsetWidth;
+
+            const x1 = r1.left + 6 - offset, y1 = r1.top + 6;
+            const x2 = r2.left + 6 - offset, y2 = r2.top + 6;
+
+            ctx.strokeStyle = isPowerOn ? "var(--wire-on)" : "#444";
+            ctx.setLineDash(isPowerOn ? [10, 5] : []); // Moving flow effect
+            if(isPowerOn) ctx.lineDashOffset -= 0.5;
+
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            // Spline path for scientific look
+            ctx.bezierCurveTo(x1 + (x2-x1)/2, y1, x1 + (x2-x1)/2, y2, x2, y2);
+            ctx.stroke();
+        });
+        if(isPowerOn) requestAnimationFrame(drawWires);
+    }
+
+    // --- Physics Solver (Nodal Approximation) ---
+    function solveCircuit() {
+        if(!isPowerOn) {
+            components.forEach(c => document.getElementById(`read-${c.id}`).innerText = "");
+            return;
+        }
+
+        let voltageSource = 0;
+        let totalResistance = 0;
+        let isLoopOpen = components.some(c => c.type === 'switch' && !c.state);
+
+        // Simple Series-Equivalent Logic for high-school level sims
+        components.forEach(c => {
+            if(c.type === 'battery') voltageSource += c.val;
+            if(c.type === 'resistor') totalResistance += c.val;
+            if(c.type === 'bulb') totalResistance += 20; // Internal resistance of bulb
+            if(c.type === 'ammeter') totalResistance += 0.1; // Shunt resistance
+        });
+
+        const current = (totalResistance > 0 && !isLoopOpen) ? (voltageSource / totalResistance) : 0;
+
+        components.forEach(c => {
+            const readout = document.getElementById(`read-${c.id}`);
+            if(c.type === 'ammeter') readout.innerText = current.toFixed(2) + " A";
+            if(c.type === 'voltmeter') readout.innerText = (current * totalResistance).toFixed(1) + " V";
+            if(c.type === 'bulb') {
+                const fil = document.getElementById(`fil-${c.id}`);
+                const brightness = Math.min(current * 40, 100);
+                fil.style.stroke = current > 0 ? `rgba(255, 255, 0, ${brightness/100})` : "#fff";
+                fil.style.filter = current > 0 ? `drop-shadow(0 0 ${brightness/5}px yellow)` : "none";
+            }
+        });
+    }
+
+    // --- State & Undo ---
+    function saveState() {
+        if(history.length > 50) history.shift();
+        history.push(JSON.stringify({ c: components, n: connections }));
+    }
+
+    function undo() {
+        if(history.length === 0) return;
+        const state = JSON.parse(history.pop());
+        components = state.c;
+        connections = state.n;
+        
+        document.querySelectorAll('.component').forEach(e => e.remove());
+        components.forEach(c => renderComponent(c));
+        drawWires();
+        solveCircuit();
+    }
+
+    // Start with a clean slate
+    saveState();
+</script>
+</body>
+</html>
